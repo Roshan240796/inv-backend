@@ -5,12 +5,17 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -34,6 +39,11 @@ public class InvoiceController {
             .collect(Collectors.toList());
     }
 
+    @GetMapping("/{id}")
+    public InvoiceResponse getInvoice(@PathVariable Long id) {
+        return toResponse(findInvoice(id));
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public InvoiceResponse createInvoice(@Valid @RequestBody CreateInvoiceRequest request) {
@@ -48,6 +58,32 @@ public class InvoiceController {
         return toResponse(invoice);
     }
 
+    @PutMapping("/{id}")
+    public InvoiceResponse updateInvoice(@PathVariable Long id, @Valid @RequestBody UpdateInvoiceRequest request) {
+        Invoice invoice = findInvoice(id);
+        invoice.updateDetails(request.customer(), request.amount(), request.currency());
+        return toResponse(invoiceRepository.save(invoice));
+    }
+
+    @PatchMapping("/{id}/status")
+    public InvoiceResponse updateStatus(@PathVariable Long id, @RequestBody String status) {
+        Invoice invoice = findInvoice(id);
+        String normalizedStatus = status == null ? "" : status.replace("\"", "").trim();
+        invoice.updateStatus(normalizedStatus);
+        return toResponse(invoiceRepository.save(invoice));
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteInvoice(@PathVariable Long id) {
+        invoiceRepository.delete(findInvoice(id));
+    }
+
+    private Invoice findInvoice(Long id) {
+        return invoiceRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found"));
+    }
+
     private static InvoiceResponse toResponse(Invoice invoice) {
         return new InvoiceResponse(
             invoice.getId(), invoice.getNumber(), invoice.getCustomer(), invoice.getAmount(),
@@ -56,6 +92,12 @@ public class InvoiceController {
     }
 
     public record CreateInvoiceRequest(
+        @NotBlank String customer,
+        @NotNull @DecimalMin("0.01") BigDecimal amount,
+        @NotBlank String currency
+    ) {}
+
+    public record UpdateInvoiceRequest(
         @NotBlank String customer,
         @NotNull @DecimalMin("0.01") BigDecimal amount,
         @NotBlank String currency
