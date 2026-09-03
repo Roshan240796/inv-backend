@@ -264,7 +264,11 @@ public class InvoiceAttachment {
 ✅ **Flutter invoice details screen**
 ✅ **Flutter invoice editing screen**
 ✅ **Flutter status management controls** (in detail view)
-✅ **Flutter invoice deletion controls** (prepared for implementation)
+✅ **Flutter invoice deletion controls**
+✅ **Invoice search, filtering, sorting, and pagination**
+✅ **Database-backed users and role authorities**
+✅ **Rotating, revocable refresh tokens**
+✅ **Rejection reasons and payment tracking fields**
 
 ---
 
@@ -287,12 +291,8 @@ public class InvoiceAttachment {
 
 ## Next Steps (Not Yet Implemented)
 
-From the milestone document, the following Invoice Information features are still needed:
-- Invoice attachments file upload/download functionality
-- Attachment preview capabilities
-- Advanced invoice search and filtering
-- Invoice PDF export
-- Invoice printing support
+Remaining production work includes secret management, database migrations, and XML integration.
+Attachment records currently store metadata and paths; binary upload/download and preview are separate future work.
 
 ---
 
@@ -305,6 +305,8 @@ From the milestone document, the following Invoice Information features are stil
 - `InvoiceLineItemRepository.java` - New repository
 - `InvoiceAttachmentRepository.java` - New repository
 - `InvoiceController.java` - Enhanced with new endpoints
+- `UserAccount.java` and `UserAccountRepository.java` - Persistent user accounts and roles
+- `RefreshToken.java` and `RefreshTokenRepository.java` - Hashed refresh-token storage
 
 ### Flutter:
 - `auth_service.dart` - Enhanced with new models and API methods
@@ -322,5 +324,6 @@ From the milestone document, the following Invoice Information features are stil
 - Line items support both discount amount and percentage
 - Attachments store file metadata; actual file storage implementation can be added
 - Session expiration is properly handled across all API calls
+- Access-token expiry triggers refresh-token rotation in Flutter
 - All new endpoints follow REST conventions
 - Frontend implements proper error handling and loading states

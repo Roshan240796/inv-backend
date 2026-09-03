@@ -17,8 +17,7 @@ curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin"}'
 
-# Expected response:
-# {"token":"eyJhbGci...","username":"admin"}
+# Expected response includes `token`, `refreshToken`, `username`, and `expiresInMs`.
 ```
 
 ### 3. Test Invoice List Endpoint (Requires Valid Token)
@@ -34,7 +33,15 @@ curl -X GET http://localhost:8080/api/invoices \
   -H "Accept: application/json"
 ```
 
-### 4. Test Invoice Detail Endpoint
+### 4a. Test Search, Filters, Sorting, and Pagination
+```bash
+curl "http://localhost:8080/api/invoices?search=Quadient&status=DRAFT&page=0&size=20&sort=amount,desc" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Expected response: an object containing `content`, `page`, `size`, `totalElements`, and `totalPages`.
+
+### 5. Test Invoice Detail Endpoint
 ```bash
 # Get invoice with ID 1
 curl -X GET http://localhost:8080/api/invoices/1 \
@@ -42,7 +49,7 @@ curl -X GET http://localhost:8080/api/invoices/1 \
   -H "Accept: application/json"
 ```
 
-### 5. Test Create Invoice
+### 6. Test Create Invoice
 ```bash
 curl -X POST http://localhost:8080/api/invoices \
   -H "Content-Type: application/json" \
@@ -54,7 +61,7 @@ curl -X POST http://localhost:8080/api/invoices \
   }'
 ```
 
-### 6. Test Update Invoice Information
+### 7. Test Update Invoice Information
 ```bash
 curl -X PUT http://localhost:8080/api/invoices/1/info \
   -H "Content-Type: application/json" \
@@ -75,7 +82,7 @@ curl -X PUT http://localhost:8080/api/invoices/1/info \
   }'
 ```
 
-### 7. Test Add Line Item
+### 8. Test Add Line Item
 ```bash
 curl -X POST http://localhost:8080/api/invoices/1/line-items \
   -H "Content-Type: application/json" \
@@ -89,15 +96,15 @@ curl -X POST http://localhost:8080/api/invoices/1/line-items \
   }'
 ```
 
-### 8. Test Update Status
+### 9. Test Update Status
 ```bash
 curl -X PATCH http://localhost:8080/api/invoices/1/status \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '"SUBMITTED"'
+  -d '{"status":"SUBMITTED"}'
 ```
 
-### 9. Test Delete Invoice
+### 10. Test Delete Invoice
 ```bash
 curl -X DELETE http://localhost:8080/api/invoices/1 \
   -H "Authorization: Bearer $TOKEN"
@@ -136,6 +143,16 @@ cd /mnt/c/Users/rosha/invoice_demo_flutter
 flutter pub get
 flutter run
 ```
+
+### 6. Manual Workflow Verification
+- Log in with `admin` / `admin`.
+- Search by invoice number or customer.
+- Filter by status and change sorting.
+- Open an invoice and verify details.
+- Test `DRAFT -> SUBMITTED -> APPROVED -> PAID`.
+- Test rejection with a required reason and recovery to draft.
+- Delete a test invoice and confirm it disappears from the list.
+- Log out and log in again; confirm the session is restored after restart.
 
 ---
 
