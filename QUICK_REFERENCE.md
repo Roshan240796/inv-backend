@@ -136,6 +136,16 @@ Input: {"status":"REJECTED","rejectionReason":"Incorrect details"}
 
 Supported transitions remain `DRAFT -> SUBMITTED`, `SUBMITTED -> APPROVED|REJECTED`,
 `APPROVED -> PAID`, and `REJECTED -> DRAFT|SUBMITTED`.
+
+### Import XML Invoice
+```bash
+curl -X POST http://localhost:8080/api/invoices/import/xml \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@invoice.xml"
+```
+
+The importer accepts common fields such as `invoiceNumber`, `customer`, `amount`, `currency`,
+`issuedOn`, `dueDate`, `supplier`, and `notes`, creates a draft invoice, and stores the original XML file.
 ```
 
 ---

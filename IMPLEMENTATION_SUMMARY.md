@@ -268,6 +268,7 @@ public class InvoiceAttachment {
 ✅ **Invoice search, filtering, sorting, and pagination**
 ✅ **Database-backed users and role authorities**
 ✅ **Rotating, revocable refresh tokens**
+✅ **Authenticated XML invoice import with secure parsing and original-file storage**
 ✅ **Rejection reasons and payment tracking fields**
 
 ---
@@ -291,7 +292,7 @@ public class InvoiceAttachment {
 
 ## Next Steps (Not Yet Implemented)
 
-Remaining production work includes secret management, database migrations, and XML integration.
+Remaining production work includes secret management, database migrations, standardized e-invoice formats, and XML processing logs.
 Attachment records currently store metadata and paths; binary upload/download and preview are separate future work.
 
 ---
