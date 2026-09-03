@@ -110,6 +110,78 @@ curl -X DELETE http://localhost:8080/api/invoices/1 \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+### 11. Test XML Import
+```bash
+cat > /tmp/invoice.xml <<'EOF'
+<Invoice>
+  <invoiceNumber>XML-TEST-001</invoiceNumber>
+  <customer>XML Customer</customer>
+  <amount>125.50</amount>
+  <currency>EUR</currency>
+  <issuedOn>2026-09-03</issuedOn>
+</Invoice>
+EOF
+
+curl -X POST http://localhost:8080/api/invoices/import/xml \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/tmp/invoice.xml"
+```
+
+Expected response: `201 Created` with a new `DRAFT` invoice. Also test a missing required field,
+a non-XML extension, and an XML containing a `DOCTYPE`; each must be rejected.
+
+## XML Integration Test Case for Next Session
+
+### Preconditions
+- Start Spring Boot on port `8080`.
+- Confirm PostgreSQL is running.
+- Obtain an access token using the `admin` / `admin` credentials.
+
+### Test Data
+Create `/tmp/invoice.xml` with:
+
+```xml
+<Invoice>
+  <invoiceNumber>XML-TEST-001</invoiceNumber>
+  <customer>XML Customer</customer>
+  <amount>125.50</amount>
+  <currency>EUR</currency>
+  <issuedOn>2026-09-03</issuedOn>
+  <dueDate>2026-10-03</dueDate>
+  <supplier>Test Supplier</supplier>
+  <notes>Imported from XML</notes>
+</Invoice>
+```
+
+### Test Steps
+1. Login and save the returned `token` as `TOKEN`.
+2. Upload the XML file:
+
+```bash
+curl -i -X POST http://localhost:8080/api/invoices/import/xml \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/tmp/invoice.xml"
+```
+
+3. Confirm the response is `201 Created` and contains a `DRAFT` invoice with customer
+   `XML Customer`, amount `125.50`, currency `EUR`, supplier `Test Supplier`, and due date `2026-10-03`.
+4. Confirm the imported invoice can be found:
+
+```bash
+curl -sS "http://localhost:8080/api/invoices?search=XML-TEST-001" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+5. Confirm the original XML is listed in the invoice attachments.
+6. Confirm these invalid inputs return `400 Bad Request`:
+   - A file whose name does not end in `.xml`.
+   - XML missing `customer`, `amount`, or `currency`.
+   - XML containing a `DOCTYPE` or external entity.
+
+### Expected Result
+The valid XML creates one draft invoice and stores the original file. Invalid or unsafe XML
+is rejected without creating an invoice.
+
 ---
 
 ## Flutter Testing

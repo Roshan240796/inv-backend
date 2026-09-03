@@ -139,6 +139,14 @@ The Flutter workflow was manually verified on the Android emulator:
 - ✅ Invoice details and editing
 - ✅ Status transitions, rejection reason, payment, and deletion
 
+## XML Integration
+
+- ✅ Authenticated multipart XML upload
+- ✅ Common invoice field parsing and draft invoice creation
+- ✅ Original XML storage as an invoice attachment
+- ✅ Required-field and extension validation
+- ✅ XXE/DOCTYPE rejection test
+
 **Likely Causes:**
 1. **Network connectivity:** Android emulator → host machine (10.0.2.2:8080)
 2. **Timeout during connection:** Check `flutter logs` for network timeouts
