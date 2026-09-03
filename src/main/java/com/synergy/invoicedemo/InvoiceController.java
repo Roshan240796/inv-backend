@@ -13,13 +13,21 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @RestController
@@ -41,10 +49,49 @@ public class InvoiceController {
     }
 
     @GetMapping
-    public List<InvoiceResponse> listInvoices() {
-        return invoiceRepository.findAll().stream()
-            .map(InvoiceController::toResponse)
-            .collect(Collectors.toList());
+    public Object listInvoices(
+        @RequestParam(required = false) String search,
+        @RequestParam(required = false) String customer,
+        @RequestParam(required = false) String status,
+        @RequestParam(required = false) String currency,
+        @RequestParam(required = false) LocalDate issuedFrom,
+        @RequestParam(required = false) LocalDate issuedTo,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size,
+        @RequestParam(defaultValue = "issuedOn,desc") String sort
+    ) {
+        boolean paged = search != null || customer != null || status != null || currency != null
+            || issuedFrom != null || issuedTo != null || page != 0 || size != 20 || !"issuedOn,desc".equals(sort);
+        Specification<Invoice> specification = (root, query, cb) -> cb.conjunction();
+        if (search != null && !search.isBlank()) {
+            String value = "%" + search.trim().toLowerCase() + "%";
+            specification = specification.and((root, query, cb) -> cb.or(
+                cb.like(cb.lower(root.get("number")), value),
+                cb.like(cb.lower(root.get("customer")), value)
+            ));
+        }
+        if (customer != null && !customer.isBlank()) {
+            specification = specification.and((root, query, cb) -> cb.like(cb.lower(root.get("customer")), "%" + customer.trim().toLowerCase() + "%"));
+        }
+        if (status != null && !status.isBlank()) {
+            specification = specification.and((root, query, cb) -> cb.equal(root.get("status"), Invoice.normalizeStatus(status)));
+        }
+        if (currency != null && !currency.isBlank()) {
+            specification = specification.and((root, query, cb) -> cb.equal(root.get("currency"), Invoice.normalizeCurrency(currency)));
+        }
+        if (issuedFrom != null) specification = specification.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("issuedOn"), issuedFrom));
+        if (issuedTo != null) specification = specification.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("issuedOn"), issuedTo));
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100), parseSort(sort));
+        Page<InvoiceResponse> result = invoiceRepository.findAll(specification, pageable).map(InvoiceController::toResponse);
+        return paged ? new InvoicePageResponse(result.getContent(), result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages()) : result.getContent();
+    }
+
+    private static Sort parseSort(String value) {
+        String[] parts = value == null ? new String[] {"issuedOn", "desc"} : value.split(",", 2);
+        Set<String> fields = Set.of("number", "customer", "amount", "issuedOn", "currency", "status");
+        String field = fields.contains(parts[0]) ? parts[0] : "issuedOn";
+        Sort.Direction direction = parts.length > 1 && "asc".equalsIgnoreCase(parts[1]) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        return Sort.by(direction, field);
     }
 
     @GetMapping("/{id}")
@@ -99,10 +146,24 @@ public class InvoiceController {
     }
 
     @PatchMapping("/{id}/status")
-    public InvoiceResponse updateStatus(@PathVariable Long id, @RequestBody String status) {
+    public InvoiceResponse updateStatus(@PathVariable Long id, @RequestBody Object payload) {
         Invoice invoice = findInvoice(id);
-        String normalizedStatus = status == null ? "" : status.replace("\"", "").trim();
-        invoice.updateStatus(normalizedStatus);
+        String status;
+        String rejectionReason = null;
+        String paymentReference = null;
+        if (payload instanceof String text) {
+            status = text.replace("\"", "").trim();
+        } else if (payload instanceof java.util.Map<?, ?> values) {
+            Object statusValue = values.get("status");
+            status = statusValue == null ? "" : String.valueOf(statusValue);
+            rejectionReason = values.get("rejectionReason") == null ? null : String.valueOf(values.get("rejectionReason"));
+            paymentReference = values.get("paymentReference") == null ? null : String.valueOf(values.get("paymentReference"));
+        } else {
+            status = "";
+        }
+        invoice.updateStatus(status);
+        if ("REJECTED".equals(invoice.getStatus())) invoice.setRejectionReason(rejectionReason);
+        if ("PAID".equals(invoice.getStatus())) invoice.markPaid(paymentReference);
         return toResponse(invoiceRepository.save(invoice));
     }
 
@@ -206,6 +267,7 @@ public class InvoiceController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteInvoice(@PathVariable Long id) {
         invoiceRepository.delete(findInvoice(id));
@@ -292,6 +354,8 @@ public class InvoiceController {
         @NotBlank String currency
     ) {}
 
+    public record StatusUpdateRequest(String status, String rejectionReason, String paymentReference) {}
+
     public record UpdateInvoiceInfoRequest(
         String customerAddress,
         String customerContactEmail,
@@ -340,6 +404,14 @@ public class InvoiceController {
         String currency,
         String status,
         LocalDate issuedOn
+    ) {}
+
+    public record InvoicePageResponse(
+        List<InvoiceResponse> content,
+        int page,
+        int size,
+        long totalElements,
+        int totalPages
     ) {}
 
     public record InvoiceDetailResponse(

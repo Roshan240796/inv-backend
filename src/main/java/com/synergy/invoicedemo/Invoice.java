@@ -104,6 +104,15 @@ public class Invoice {
     @Column(length = 2000)
     private String notes;
 
+    @Column(length = 2000)
+    private String rejectionReason;
+
+    @Column
+    private LocalDate paidOn;
+
+    @Column(length = 200)
+    private String paymentReference;
+
     // Line Items and Attachments
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     private List<InvoiceLineItem> lineItems = new ArrayList<>();
@@ -152,6 +161,11 @@ public class Invoice {
             );
         }
         this.status = normalizedStatus;
+    }
+
+    public void markPaid(String reference) {
+        this.paidOn = LocalDate.now();
+        this.paymentReference = reference;
     }
 
     public void updateDetails(String customer, BigDecimal amount, String currency) {
@@ -325,6 +339,22 @@ public class Invoice {
 
     public String getNotes() {
         return notes;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public LocalDate getPaidOn() {
+        return paidOn;
+    }
+
+    public String getPaymentReference() {
+        return paymentReference;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
     }
 
     public List<InvoiceLineItem> getLineItems() {

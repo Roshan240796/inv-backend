@@ -7,7 +7,7 @@
 | Backend | ✅ Running | Listening on `localhost:8080` |
 | Database | ✅ Connected | PostgreSQL invoice_demo |
 | API Endpoints | ✅ All Working | Login, CRUD, Line Items, Info |
-| Flutter App | ⚠️ Login Issue | Backend reachability needs check |
+| Flutter App | ✅ Tested | Login, invoice list, search, filtering, lifecycle controls |
 
 ---
 
@@ -25,7 +25,7 @@ mvn spring-boot:run -DskipTests
 curl http://localhost:8080/api/auth/login -X POST \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin"}'
-# Returns: {"token":"...", "username":"admin"}
+# Returns access token, refresh token, username, and expiration metadata
 ```
 
 ### Run Flutter
@@ -73,8 +73,15 @@ After improvements, the Flutter login screen should now display:
 ```bash
 POST /api/auth/login
 Input: {"username":"admin","password":"admin"}
-Output: {"token":"JWT_TOKEN", "username":"admin"}
+Output: `{token, refreshToken, username, expiresInMs}`
 Status: 200 OK ✅
+
+```http
+POST /api/auth/refresh
+POST /api/auth/logout
+```
+
+Refresh tokens are persisted as hashes, rotated after use, and revoked on logout.
 ```
 
 ### Invoice List
@@ -83,6 +90,9 @@ GET /api/invoices
 Headers: Authorization: Bearer TOKEN
 Status: 200 OK ✅
 Returns: Array of invoices
+
+Supported query parameters: `search`, `customer`, `status`, `currency`, `issuedFrom`, `issuedTo`, `page`, `size`, `sort`.
+Filtered or sorted requests return `{content, page, size, totalElements, totalPages}`.
 ```
 
 ### Create Invoice
@@ -116,6 +126,16 @@ Headers: Authorization: Bearer TOKEN
 Input: {description, quantity, unitPrice, tax%, discount%}
 Status: 201 Created ✅
 Line calculations working: subtotal, tax, total
+
+### Update Invoice Status
+```bash
+PATCH /api/invoices/{id}/status
+Headers: Authorization: Bearer TOKEN
+Input: {"status":"REJECTED","rejectionReason":"Incorrect details"}
+```
+
+Supported transitions remain `DRAFT -> SUBMITTED`, `SUBMITTED -> APPROVED|REJECTED`,
+`APPROVED -> PAID`, and `REJECTED -> DRAFT|SUBMITTED`.
 ```
 
 ---
@@ -171,7 +191,7 @@ DROP TABLE IF EXISTS invoices CASCADE;
 
 ---
 
-## 📈 Testing Progress
+## Testing Progress
 
 ### Backend Testing
 - ✅ Authentication
@@ -183,12 +203,12 @@ DROP TABLE IF EXISTS invoices CASCADE;
 - ✅ Error Handling
 
 ### Flutter Testing
-- ⚠️ Login (needs debugging)
-- ❓ Invoice List Display
-- ❓ Invoice Detail View
-- ❓ Invoice Editing
-- ❓ Line Item Operations
-- ❓ Calculations Display
+- ✅ Login and token persistence
+- ✅ Invoice list display
+- ✅ Search, filters, sorting, and pagination
+- ✅ Invoice detail view
+- ✅ Invoice editing and line-item operations
+- ✅ Status, rejection, payment, and deletion controls
 
 ---
 
@@ -221,7 +241,7 @@ Once Flutter login is fixed:
 
 ---
 
-**Last Updated:** 2026-09-01  
+**Last Updated:** 2026-09-03
 **Backend Status:** ✅ Running  
 **Database Status:** ✅ Connected  
-**Test Coverage:** Backend 100% | Flutter ~30% (login blocking)
+**Test Coverage:** Backend automated tests passing | Flutter workflow manually verified

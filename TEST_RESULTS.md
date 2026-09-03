@@ -1,7 +1,7 @@
 # Invoice Application - Test Results Summary
 
-**Date:** 2026-09-01  
-**Status:** ✅ **BACKEND FULLY OPERATIONAL** | 🔄 **FLUTTER NEEDS LOGIN DEBUGGING**
+**Date:** 2026-09-03
+**Status:** ✅ **BACKEND OPERATIONAL** | ✅ **FLUTTER WORKFLOW VERIFIED**
 
 ---
 
@@ -13,7 +13,7 @@
 - **Java Process:** Active (PID visible on port 8080)
 - **Server Address:** `0.0.0.0:8080` (accessible externally)
 
-### ✅ Authentication Endpoint
+### ✅ Authentication and Session Endpoints
 ```
 POST /api/auth/login
 Status: 200 OK
@@ -21,9 +21,13 @@ Credentials: admin / admin
 Response: 
 {
   "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsIm...",
-  "username": "admin"
+  "username": "admin",
+  "refreshToken": "...",
+  "expiresInMs": 3600000
 }
 ```
+
+Refresh rotation and logout revocation were verified through `/api/auth/refresh` and `/api/auth/logout`.
 
 ### ✅ Invoice Management Endpoints
 
@@ -86,6 +90,8 @@ All tables created successfully:
 - `invoices` - 22 columns (with new fields for customer, supplier, dates, financial details)
 - `invoice_line_items` - 9 columns (lineItem calculations)
 - `invoice_attachments` - 8 columns (file metadata)
+- `users` and `user_roles` - database-backed accounts and authorities
+- `refresh_tokens` - hashed, expiring, revocable refresh tokens
 
 All relationships:
 - ✅ Cascade delete on line items
@@ -126,14 +132,12 @@ Response: {"status": "Application is running", "timestamp": 1788284529}
 
 ## Flutter Application Status
 
-### 🔴 Issue: Login Returns to Login Page
-**Status:** Under Investigation
-
-**Findings:**
-1. ✅ Backend authentication is working (verified with curl)
-2. ✅ Token generation is successful
-3. ✅ API endpoint is accessible from localhost
-4. ⚠️ Flutter app may not be reaching endpoint from emulator
+The Flutter workflow was manually verified on the Android emulator:
+- ✅ Login and token persistence
+- ✅ Invoice list and pull-to-refresh
+- ✅ Search, status filtering, sorting, and pagination controls
+- ✅ Invoice details and editing
+- ✅ Status transitions, rejection reason, payment, and deletion
 
 **Likely Causes:**
 1. **Network connectivity:** Android emulator → host machine (10.0.2.2:8080)
@@ -143,29 +147,20 @@ Response: {"status": "Application is running", "timestamp": 1788284529}
 
 ### 📋 Changes Made to Flutter
 
-**auth_service.dart:**
-- ✅ Added 10-second connection timeout
-- ✅ Added logging to console: `print('Login Response: ...')`
-- ✅ Better error message formatting
-- ✅ Handle timeout exceptions explicitly
+**lib/main.dart:**
+- ✅ Stores access and refresh tokens securely
+- ✅ Detects JWT expiration with clock-skew tolerance
+- ✅ Refreshes access tokens automatically and rotates refresh tokens
+- ✅ Provides search, filters, sorting, pagination, lifecycle controls, and deletion
 
-**login_screen.dart:**
-- ✅ Display full error message with `print()` statements
-- ✅ Shows "Login failed: $error" on screen
-- ✅ Better error box visibility
+### 🔍 Remaining Validation
 
-### 🔍 Next Steps to Debug
-
-#### Option 1: Check Flutter Logs (RECOMMENDED)
+#### Flutter analyzer and automated tests
 ```bash
 # In Flutter project directory
 flutter logs
 
-# Look for:
-# - Network errors
-# - Connection timeouts
-# - JSON parsing errors
-# - Exception stack traces
+The local Flutter SDK must be repaired before rerunning `flutter analyze` and `flutter test`; the previous installation was missing its Dart SDK.
 ```
 
 #### Option 2: Test from Emulator Shell

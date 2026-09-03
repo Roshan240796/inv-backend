@@ -8,6 +8,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class JwtService {
 
@@ -22,6 +23,7 @@ public class JwtService {
     public String generateToken(UserDetails userDetails) {
         return Jwts.builder()
             .subject(userDetails.getUsername())
+            .claim("roles", userDetails.getAuthorities().stream().map(Object::toString).collect(Collectors.toList()))
             .issuedAt(new Date())
             .expiration(new Date(System.currentTimeMillis() + expirationMs))
             .signWith(secretKey)
@@ -35,6 +37,10 @@ public class JwtService {
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
         return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+    }
+
+    public long getExpirationMs() {
+        return expirationMs;
     }
 
     private boolean isTokenExpired(String token) {
