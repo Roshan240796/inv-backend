@@ -1,0 +1,26 @@
+environment: dev
+imagePullSecrets: []
+
+api:
+  replicaCount: 1
+  image:
+    repository: invoice-demo
+    tag: dev
+    pullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    port: 8080
+    nodePort: 30080
+  resources: {}
+
+postgres:
+  image: postgres:16-alpine
+  database: invoice_demo
+  username: inv_dba
+  password: inv_dba_passwd
+  storage: 1Gi
+
+app:
+  adminPassword: admin
+  jwtSecret: local-invoice-demo-secret-32-bytes-minimum!!
+  jwtExpirationMs: "3600000"

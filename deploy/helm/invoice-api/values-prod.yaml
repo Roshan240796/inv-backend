@@ -1,0 +1,16 @@
+environment: prod
+
+api:
+  replicaCount: 2
+  service:
+    nodePort: 30082
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+postgres:
+  storage: 5Gi
