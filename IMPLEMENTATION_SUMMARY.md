@@ -292,8 +292,59 @@ public class InvoiceAttachment {
 
 ## Next Steps (Not Yet Implemented)
 
-Remaining production work includes secret management, database migrations, standardized e-invoice formats, and XML processing logs.
+Remaining production work includes database migrations, standardized e-invoice formats, and XML processing logs.
 Attachment records currently store metadata and paths; binary upload/download and preview are separate future work.
+
+---
+
+## Deployment and Mobile Testing
+
+### Backend deployment
+
+The Spring Boot backend was prepared for container deployment and hosted on Render:
+
+- Added `Dockerfile` with a Maven build stage and Java 21 runtime image.
+- Added `render.yaml` defining the `invoice-api` web service and `invoice-db` PostgreSQL database.
+- Made the database host, port, database name, and server port configurable through environment variables.
+- Kept local defaults working with `localhost`, port `5432`, database `invoice_demo`, and application port `8080`.
+- Configured Render to generate `APP_ADMIN_PASSWORD` and `JWT_SECRET` values.
+- Deployed the backend at the Render API URL used by the mobile build.
+
+The Docker production build uses `-Dmaven.test.skip=true` so test sources are not compiled into the runtime image. This was necessary because the existing test suite contains a Spring Boot test import that is not available in the deployed dependency set.
+
+### Flutter standalone API configuration
+
+The Flutter application no longer requires a hard-coded backend address:
+
+```dart
+const baseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://10.0.2.2:8080',
+);
+```
+
+- Android emulator builds continue to use `10.0.2.2` by default.
+- Physical-device and release builds can receive a public backend URL with `--dart-define=API_BASE_URL=...`.
+- The standalone phone build uses the Render HTTPS API URL, so it does not require USB, port forwarding, Wi-Fi access to the development PC, or a running local backend.
+
+### Phone installation
+
+The application was built and installed successfully on a Samsung Android 16 device:
+
+```powershell
+flutter build apk --debug `
+  --dart-define=API_BASE_URL=https://<render-api-url>
+
+adb install -r build\app\outputs\flutter-apk\app-debug.apk
+```
+
+The phone was tested after disconnecting USB and logging in through the deployed API.
+
+### Free hosting considerations
+
+- A free Render web service spins down after 15 minutes without inbound traffic and normally wakes in about one minute when requested again.
+- Free Render PostgreSQL databases expire 30 days after creation, with a limited upgrade grace period. Upgrade the database before expiration to preserve invoice data.
+- Render environment variables contain sensitive values such as `APP_ADMIN_PASSWORD` and `JWT_SECRET`; they must not be committed to source control or included in the APK.
 
 ---
 
@@ -308,13 +359,22 @@ Attachment records currently store metadata and paths; binary upload/download an
 - `InvoiceController.java` - Enhanced with new endpoints
 - `UserAccount.java` and `UserAccountRepository.java` - Persistent user accounts and roles
 - `RefreshToken.java` and `RefreshTokenRepository.java` - Hashed refresh-token storage
+- `Dockerfile` - Container build for the Spring Boot backend
+- `render.yaml` - Render web-service and PostgreSQL blueprint
+- `src/main/resources/application.properties` - Environment-configurable database and port settings
 
 ### Flutter:
 - `auth_service.dart` - Enhanced with new models and API methods
 - `invoice_detail_screen.dart` - New screen
 - `invoice_edit_screen.dart` - New screen
 - `invoice_list_screen.dart` - Updated for navigation
-- `main.dart` - Updated with route management
+- `main.dart` - Updated with route management and configurable API URL
+
+### Deployment outcome:
+- Backend deployment configuration merged into the GitHub `main` branch.
+- Render `invoice-api` deployed successfully.
+- Render `invoice-db` created and available.
+- Standalone Flutter debug APK built and installed on the Samsung test device.
 
 ---
 
