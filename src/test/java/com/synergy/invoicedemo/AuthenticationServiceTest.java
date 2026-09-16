@@ -10,7 +10,7 @@ class AuthenticationServiceTest {
 
     @Test
     void shouldCreateJwtForAdminUser() {
-        JwtService jwtService = new JwtService("invoice-demo-secret-key-change-me", 3600000L);
+        JwtService jwtService = new JwtService("local-invoice-demo-secret-32-bytes-minimum!!", 3600000L);
 
         String token = jwtService.generateToken(
             User.withUsername("admin")

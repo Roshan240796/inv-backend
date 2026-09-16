@@ -1,0 +1,107 @@
+stages:
+  - validate
+  - image
+  - deploy
+
+variables:
+  IMAGE_TAG: "$CI_COMMIT_SHORT_SHA"
+  TF_ROOT: "infra/terraform/local"
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_HTTP_LOCK_METHOD: "POST"
+  TF_HTTP_UNLOCK_METHOD: "DELETE"
+
+helm_lint:
+  stage: validate
+  tags:
+    - wsl-k8s
+  script:
+    - helm lint deploy/helm/invoice-api
+
+terraform_validate:
+  stage: validate
+  tags:
+    - wsl-k8s
+  script:
+    - rm -f "$TF_ROOT/ci-backend.tf"
+    - terraform -chdir="$TF_ROOT" init -backend=false
+    - terraform -chdir="$TF_ROOT" validate
+
+build_image:
+  stage: image
+  tags:
+    - wsl-k8s
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" --username "$CI_REGISTRY_USER" --password-stdin
+    - docker build --tag "$CI_REGISTRY_IMAGE:$IMAGE_TAG" .
+    - docker push "$CI_REGISTRY_IMAGE:$IMAGE_TAG"
+
+deploy_dev:
+  stage: deploy
+  tags:
+    - wsl-k8s
+  variables:
+    TF_HTTP_ADDRESS: "$CI_API_V4_URL/projects/$CI_PROJECT_ID/terraform/state/dev"
+    TF_HTTP_USERNAME: "$CI_REGISTRY_USER"
+    TF_HTTP_PASSWORD: "$CI_JOB_TOKEN"
+    TF_HTTP_LOCK_ADDRESS: "$CI_API_V4_URL/projects/$CI_PROJECT_ID/terraform/state/dev/lock"
+    TF_HTTP_UNLOCK_ADDRESS: "$CI_API_V4_URL/projects/$CI_PROJECT_ID/terraform/state/dev/lock"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  script:
+    - mkdir -p "$CI_PROJECT_DIR/.kube"
+    - echo "$KUBE_CONFIG_B64" | base64 -d > "$CI_PROJECT_DIR/.kube/config"
+    - export KUBECONFIG="$CI_PROJECT_DIR/.kube/config"
+    - kubectl create namespace invoice-dev --dry-run=client -o yaml | kubectl apply -f -
+    - kubectl -n invoice-dev create secret docker-registry gitlab-registry --docker-server="$CI_REGISTRY" --docker-username="$CI_REGISTRY_USER" --docker-password="$CI_JOB_TOKEN" --dry-run=client -o yaml | kubectl apply -f -
+    - printf 'terraform { backend "http" {} }\n' > "$TF_ROOT/ci-backend.tf"
+    - terraform -chdir="$TF_ROOT" init -reconfigure
+    - terraform -chdir="$TF_ROOT" apply -auto-approve -var-file=dev.tfvars -var="kubeconfig=$KUBECONFIG" -var="image_repository=$CI_REGISTRY_IMAGE" -var="image_tag=$IMAGE_TAG" -var="admin_password=$APP_ADMIN_PASSWORD" -var="jwt_secret=$JWT_SECRET" -var='image_pull_secret=gitlab-registry'
+
+deploy_staging:
+  stage: deploy
+  tags:
+    - wsl-k8s
+  variables:
+    TF_HTTP_ADDRESS: "$CI_API_V4_URL/projects/$CI_PROJECT_ID/terraform/state/staging"
+    TF_HTTP_USERNAME: "$CI_REGISTRY_USER"
+    TF_HTTP_PASSWORD: "$CI_JOB_TOKEN"
+    TF_HTTP_LOCK_ADDRESS: "$CI_API_V4_URL/projects/$CI_PROJECT_ID/terraform/state/staging/lock"
+    TF_HTTP_UNLOCK_ADDRESS: "$CI_API_V4_URL/projects/$CI_PROJECT_ID/terraform/state/staging/lock"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  script:
+    - mkdir -p "$CI_PROJECT_DIR/.kube"
+    - echo "$KUBE_CONFIG_B64" | base64 -d > "$CI_PROJECT_DIR/.kube/config"
+    - export KUBECONFIG="$CI_PROJECT_DIR/.kube/config"
+    - kubectl create namespace invoice-staging --dry-run=client -o yaml | kubectl apply -f -
+    - kubectl -n invoice-staging create secret docker-registry gitlab-registry --docker-server="$CI_REGISTRY" --docker-username="$CI_REGISTRY_USER" --docker-password="$CI_JOB_TOKEN" --dry-run=client -o yaml | kubectl apply -f -
+    - printf 'terraform { backend "http" {} }\n' > "$TF_ROOT/ci-backend.tf"
+    - terraform -chdir="$TF_ROOT" init -reconfigure
+    - terraform -chdir="$TF_ROOT" apply -auto-approve -var-file=staging.tfvars -var="kubeconfig=$KUBECONFIG" -var="image_repository=$CI_REGISTRY_IMAGE" -var="image_tag=$IMAGE_TAG" -var="admin_password=$APP_ADMIN_PASSWORD" -var="jwt_secret=$JWT_SECRET" -var='image_pull_secret=gitlab-registry'
+
+deploy_prod:
+  stage: deploy
+  tags:
+    - wsl-k8s
+  variables:
+    TF_HTTP_ADDRESS: "$CI_API_V4_URL/projects/$CI_PROJECT_ID/terraform/state/prod"
+    TF_HTTP_USERNAME: "$CI_REGISTRY_USER"
+    TF_HTTP_PASSWORD: "$CI_JOB_TOKEN"
+    TF_HTTP_LOCK_ADDRESS: "$CI_API_V4_URL/projects/$CI_PROJECT_ID/terraform/state/prod/lock"
+    TF_HTTP_UNLOCK_ADDRESS: "$CI_API_V4_URL/projects/$CI_PROJECT_ID/terraform/state/prod/lock"
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+  script:
+    - mkdir -p "$CI_PROJECT_DIR/.kube"
+    - echo "$KUBE_CONFIG_B64" | base64 -d > "$CI_PROJECT_DIR/.kube/config"
+    - export KUBECONFIG="$CI_PROJECT_DIR/.kube/config"
+    - kubectl create namespace invoice-prod --dry-run=client -o yaml | kubectl apply -f -
+    - kubectl -n invoice-prod create secret docker-registry gitlab-registry --docker-server="$CI_REGISTRY" --docker-username="$CI_REGISTRY_USER" --docker-password="$CI_JOB_TOKEN" --dry-run=client -o yaml | kubectl apply -f -
+    - printf 'terraform { backend "http" {} }\n' > "$TF_ROOT/ci-backend.tf"
+    - terraform -chdir="$TF_ROOT" init -reconfigure
+    - terraform -chdir="$TF_ROOT" apply -auto-approve -var-file=prod.tfvars -var="kubeconfig=$KUBECONFIG" -var="image_repository=$CI_REGISTRY_IMAGE" -var="image_tag=$IMAGE_TAG" -var="admin_password=$APP_ADMIN_PASSWORD" -var="jwt_secret=$JWT_SECRET" -var='image_pull_secret=gitlab-registry'

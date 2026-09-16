@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 public class JwtConfig {
 
     @Bean
-    public JwtService jwtService(@Value("${app.jwt.secret:invoice-demo-secret-key-change-me}") String secret,
+    public JwtService jwtService(@Value("${app.jwt.secret:local-invoice-demo-secret-32-bytes-minimum!!}") String secret,
                                 @Value("${app.jwt.expiration-ms:3600000}") long expirationMs) {
         return new JwtService(secret, expirationMs);
     }

@@ -1,0 +1,9 @@
+environment: staging
+
+api:
+  replicaCount: 1
+  service:
+    nodePort: 30081
+
+postgres:
+  storage: 2Gi

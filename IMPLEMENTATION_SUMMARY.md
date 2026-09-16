@@ -376,6 +376,66 @@ The phone was tested after disconnecting USB and logging in through the deployed
 - Render `invoice-db` created and available.
 - Standalone Flutter debug APK built and installed on the Samsung test device.
 
+### Local Kubernetes and GitLab CI
+
+Local Kubernetes support was added for separate `dev`, `staging`, and `prod` environments:
+
+- `deploy/helm/invoice-api/` contains a reusable Helm chart for the Spring Boot API and PostgreSQL.
+- `infra/terraform/local/` creates an environment namespace and deploys the Helm release.
+- Environment namespaces are `invoice-dev`, `invoice-staging`, and `invoice-prod`.
+- The API is exposed through a NodePort and PostgreSQL remains internal to each namespace.
+- `.gitlab-ci.yml` validates Helm and Terraform, builds and pushes the image to the GitLab Container Registry, and deploys through a self-hosted GitLab Runner running inside WSL.
+- Development deploys automatically from the default branch; staging is manual; production is manual from a Git tag.
+- GitLab CI uses separate Terraform HTTP state names: `dev`, `staging`, and `prod`.
+- Local Terraform runs use a local state file; CI creates a temporary HTTP backend configuration.
+
+The local cluster was created with kind and the backend image was built and loaded successfully:
+
+```bash
+kind create cluster --name invoice-local
+docker build -t invoice-demo:dev .
+kind load docker-image invoice-demo:dev --name invoice-local
+```
+
+The development environment was deployed successfully with Terraform:
+
+```bash
+cd infra/terraform/local
+terraform init -reconfigure
+terraform apply -var-file=dev.tfvars
+```
+
+Current healthy Kubernetes resources:
+
+- API pod: `1/1 Running`
+- PostgreSQL pod: `1/1 Running`
+- PostgreSQL PVC: `Bound`
+- Deployment rollout: successful
+- Helm release `invoice`: deployed, revision 2
+
+Two deployment issues were fixed during local testing:
+
+1. The default JWT secret was only 200 bits. JJWT HS256 requires at least 256 bits, so the local/default secret was increased to a 32+ byte value. Real environments must provide a long random `JWT_SECRET` through secrets.
+2. Kubernetes probes initially received `403` because `/api/health` was protected by Spring Security. The endpoint is now explicitly permitted in `SecurityConfig`.
+3. The API Service initially selected the PostgreSQL pod because both workloads shared the same name and instance labels. API pods now use `app.kubernetes.io/component: api`, and the Service selects that label.
+
+To test the local API, use a port that is free on the host:
+
+```bash
+kubectl -n invoice-dev port-forward service/invoice-invoice-api 8081:8080
+curl http://localhost:8081/api/health
+```
+
+For Android Emulator access from WSL, bind the port-forward to all interfaces and use the WSL IP if `10.0.2.2` cannot reach the WSL loopback:
+
+```bash
+kubectl -n invoice-dev port-forward --address 0.0.0.0 service/invoice-invoice-api 8080:8080
+hostname -I
+flutter run --dart-define=API_BASE_URL=http://<WSL_IP>:8080
+```
+
+The Helm chart passes lint successfully. The next session should verify the Flutter login through the local API, then configure the WSL GitLab Runner and CI/CD variables (`KUBE_CONFIG_B64`, `APP_ADMIN_PASSWORD`, and `JWT_SECRET`) before testing the GitLab pipeline.
+
 ---
 
 ## Notes
